@@ -133,6 +133,8 @@ static size_t xml_dispatch(void *ptr, size_t size, size_t nmemb, void *stream)
 
 static size_t json_dispatch(void *ptr, size_t size, size_t nmemb, void *stream)
 {
+  debugf("Received: %d bytes", size * nmemb);
+
   struct json_payload *payload = (struct json_payload *) stream;
   size_t len = size * nmemb;
 
@@ -571,16 +573,19 @@ void cloudfs_verify_ssl(int vrfy)
 }
 
 static struct {
-  char username[MAX_HEADER_SIZE], password[MAX_HEADER_SIZE],
-      tenant[MAX_HEADER_SIZE], authurl[MAX_URL_SIZE], region[MAX_URL_SIZE],
+  char username[MAX_HEADER_SIZE], username_domain[MAX_HEADER_SIZE], password[MAX_HEADER_SIZE],
+      project[MAX_HEADER_SIZE], project_domain[MAX_HEADER_SIZE], authurl[MAX_URL_SIZE], region[MAX_URL_SIZE],
       use_snet, auth_version;
 } reconnect_args;
 
-void cloudfs_set_credentials(char *username, char *tenant, char *password,
+void cloudfs_set_credentials(char *username, char *username_domain,
+                             char *project, char *project_domain, char *password,
                              char *authurl, char *region, int use_snet)
 {
   strncpy(reconnect_args.username, username, sizeof(reconnect_args.username));
-  strncpy(reconnect_args.tenant, tenant, sizeof(reconnect_args.tenant));
+  strncpy(reconnect_args.username_domain, username_domain, sizeof(reconnect_args.username_domain));
+  strncpy(reconnect_args.project, project, sizeof(reconnect_args.project));
+  strncpy(reconnect_args.project_domain, project_domain, sizeof(reconnect_args.project_domain));
   strncpy(reconnect_args.password, password, sizeof(reconnect_args.password));
   strncpy(reconnect_args.authurl, authurl, sizeof(reconnect_args.authurl));
   strncpy(reconnect_args.region, region, sizeof(reconnect_args.region));
@@ -621,14 +626,14 @@ int cloudfs_connect()
 
   if (reconnect_args.auth_version == 2)
   {
-    if (!reconnect_args.tenant[0]) {
+    if (!reconnect_args.project[0]) {
       snprintf(postdata, sizeof(postdata), "{\"auth\":{\"RAX-KSKEY:apiKeyCre"
         "dentials\":{\"username\":\"%s\",\"apiKey\":\"%s\"}}}",
         reconnect_args.username, reconnect_args.password);
     } else {
       snprintf(postdata, sizeof(postdata), "{\"auth\":{\"tenantName\":\"%s\","
         "\"passwordCredentials\":{\"username\":\"%s\",\"password\":\"%s\"}}}",
-        reconnect_args.tenant, reconnect_args.username,
+        reconnect_args.project, reconnect_args.username,
         reconnect_args.password);
     }
     debugf("%s", postdata);
@@ -646,20 +651,28 @@ int cloudfs_connect()
   }
   else if (reconnect_args.auth_version == 3)
   {
-    if (reconnect_args.username[0] && reconnect_args.tenant[0] && reconnect_args.password[0])
+    if (reconnect_args.username[0] && reconnect_args.username_domain[0] && 
+        reconnect_args.project[0] && reconnect_args.project_domain[0] && reconnect_args.password[0])
     {
       snprintf(postdata, sizeof(postdata), "{\"auth\":{\"identity\":{"
-          "\"methods\":[\"password\"],\"password\":{\"user\":{\"id\":"
-          "\"%s\",\"password\":\"%s\"}},\"scope\":{\"project\":{\"id"
-          "\":\"%s\"}}}}}", reconnect_args.username, reconnect_args.password,
-          reconnect_args.tenant);
-    }
-    else if (reconnect_args.username[0] && reconnect_args.password[0])
+          "\"methods\":[\"password\"],\"password\":{\"user\":{\"name\":"
+          "\"%s\",\"domain\":{\"name\":\"%s\"},\"password\":\"%s\"}}},"
+          "\"scope\":{\"project\":{\"name\":\"%s\",\"domain\":{\"name\":"
+          "\"%s\"}}}}}", reconnect_args.username, reconnect_args.username_domain, 
+          reconnect_args.password, reconnect_args.project, reconnect_args.project_domain);
+    } 
+    else if (reconnect_args.username[0] && reconnect_args.username_domain[0] && reconnect_args.password[0])
     {
       snprintf(postdata, sizeof(postdata), "{\"auth\":{\"identity\":{"
-          "\"methods\":[\"password\"],\"password\":{\"user\":{\"id\":"
-          "\"%s\",\"password\":\"%s\"}}}}}", reconnect_args.username,
+          "\"methods\":[\"password\"],\"password\":{\"user\":{\"name\":"
+          "\"%s\",\"domain\":{\"name\":\"%s\"},\"password\":\"%s\"}}}}", 
+          reconnect_args.username, reconnect_args.username_domain, 
           reconnect_args.password);
+    }
+    else
+    {
+      debugf("All the required parameters for KeyStone V3 authentication was not provided.\n");
+      return 0;
     }
     debugf("%s", postdata);
     add_header(&headers, "Content-Type", "application/json");

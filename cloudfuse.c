@@ -427,7 +427,9 @@ char *get_home_dir()
 
 static struct options {
     char username[OPTION_SIZE];
-    char tenant[OPTION_SIZE];
+    char username_domain[OPTION_SIZE];
+    char project[OPTION_SIZE];
+    char project_domain[OPTION_SIZE];
     char password[OPTION_SIZE];
     char cache_timeout[OPTION_SIZE];
     char authurl[OPTION_SIZE];
@@ -436,8 +438,10 @@ static struct options {
     char verify_ssl[OPTION_SIZE];
 } options = {
     .username = "",
+    .username_domain = "",
     .password = "",
-    .tenant = "",
+    .project = "",
+    .project_domain = "",
     .cache_timeout = "600",
     .authurl = "https://identity.api.rackspacecloud.com/v2.0/",
     .region = "",
@@ -448,7 +452,10 @@ static struct options {
 int parse_option(void *data, const char *arg, int key, struct fuse_args *outargs)
 {
   if (sscanf(arg, " username = %[^\r\n ]", options.username) ||
-      sscanf(arg, " tenant = %[^\r\n ]", options.tenant) ||
+      sscanf(arg, " username_domain = %[^\r\n ]", options.username_domain) ||
+      sscanf(arg, " tenant = %[^\r\n ]", options.project) ||
+      sscanf(arg, " project = %[^\r\n ]", options.project) ||
+      sscanf(arg, " project_domain = %[^\r\n ]", options.project_domain) ||
       sscanf(arg, " api_key = %[^\r\n ]", options.password) ||
       sscanf(arg, " auth_url = %[^\r\n ]", options.authurl) ||
       sscanf(arg, " password = %[^\r\n ]", options.password) ||
@@ -488,10 +495,12 @@ int main(int argc, char **argv)
     fprintf(stderr, "These can be set either as mount options or in"
                     "a file named %s\n\n", settings_filename);
     fprintf(stderr, "  username=[Account username]\n");
+    fprintf(stderr, "  username_domain=[User domain for authentication with Keystone V3]\n");
     fprintf(stderr, "  api_key=[API key (or password for Keystone API)]\n\n");
     fprintf(stderr, "The following settings are optional:\n\n");
     fprintf(stderr, "  authurl=[Authentication url - connect to non-Rackspace Swift]\n");
-    fprintf(stderr, "  tenant=[Tenant for authentication with Keystone]\n");
+    fprintf(stderr, "  project=[Project (tenant) for authentication with Keystone]\n");
+    fprintf(stderr, "  project_domain=[Project domain for authentication with Keystone V3]\n");
     fprintf(stderr, "  password=[Password for authentication with Keystone]\n");
     fprintf(stderr, "  use_snet=[True to use Rackspace ServiceNet for connections]\n");
     fprintf(stderr, "  cache_timeout=[Seconds for directory caching, default 600]\n");
@@ -504,7 +513,8 @@ int main(int argc, char **argv)
 
   cloudfs_verify_ssl(!strcasecmp(options.verify_ssl, "true"));
 
-  cloudfs_set_credentials(options.username, options.tenant, options.password,
+  cloudfs_set_credentials(options.username, options.username_domain, 
+                          options.project, options.project_domain, options.password,
                           options.authurl, options.region,
                           !strcasecmp(options.use_snet, "true"));
   if (!cloudfs_connect())
